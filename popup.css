@@ -1,0 +1,221 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+  --thamous-bg: #fff7df;
+  --thamous-panel: #fff9ea;
+  --thamous-bar: #dfb77b;
+  --thamous-border: #d3a364;
+  --thamous-text: #7c5320;
+  --thamous-strong: #b14a18;
+  --thamous-button: #e8c88f;
+  --thamous-button-hover: #ddb774;
+}
+
+body {
+  margin: 0;
+  min-width: 280px;
+  background: var(--thamous-bg);
+  color: var(--thamous-text);
+}
+
+main {
+  padding: 0;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.thamous-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--thamous-bar);
+  border-bottom: 1px solid var(--thamous-border);
+  padding: 8px 12px;
+  min-height: 40px;
+}
+
+.thamous-brand {
+  display: contents;
+}
+
+.thamous-logo {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.thamous-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--thamous-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 88px);
+  text-align: center;
+}
+
+.icon-button {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: #2c1a09;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.view {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input,
+button {
+  font: inherit;
+}
+
+input {
+  padding: 7px 8px;
+  border: 1px solid var(--thamous-border);
+  background: #fffdfa;
+  color: #333;
+}
+
+.primary-button {
+  padding: 3px 9px;
+  min-height: 24px;
+  border: 1px solid #e0d3b8;
+  background: cornsilk;
+  color: #111;
+  font-weight: 400;
+  font-size: 13px;
+  font-family: "Segoe UI", Arial, sans-serif;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.primary-button:hover {
+  background: #f3e6ce;
+  border-color: #cfa96a;
+  color: #a67c2d;
+}
+
+.secondary-button {
+  padding: 3px 9px;
+  min-height: 24px;
+  border: 1px solid #e0d3b8;
+  background: cornsilk;
+  color: #111;
+  font-weight: 400;
+  font-size: 13px;
+  font-family: "Segoe UI", Arial, sans-serif;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.secondary-button:hover {
+  background: #f3e6ce;
+  border-color: #cfa96a;
+  color: #a67c2d;
+}
+
+.intro,
+.session-summary,
+.session-label,
+.status {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.intro {
+  font-size: 13px;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.llm-panel {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.llm-status-text {
+  margin: 0;
+  font-size: 13px;
+  text-align: center;
+}
+
+.llm-status-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.llm-status-button:hover .llm-status-text,
+.llm-status-button:focus .llm-status-text {
+  text-decoration: underline;
+}
+
+.actions-label {
+  margin: 0 0 -2px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.actions > button {
+  min-width: 200px;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.status {
+  margin: 0 14px 14px;
+  padding: 10px 12px;
+  background: #fff2d4;
+  border: 1px solid var(--thamous-border);
+  white-space: pre-wrap;
+  font-size: 13px;
+}

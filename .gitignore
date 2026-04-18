@@ -1,0 +1,5 @@
+dist/*.xpi
+dist/*.zip
+dist/updates.json
+__pycache__/
+*.pyc

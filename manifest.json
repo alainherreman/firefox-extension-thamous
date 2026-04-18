@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Thamous – Importer des références",
+  "version": "0.2.0",
+  "description": "Importe dans Thamous la référence principale, toutes les références détectées, ou la page web active.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "64": "icons/icon-64.png"
+  },
+  "permissions": ["storage", "tabs", "windows"],
+  "host_permissions": ["https://thamous.ouvaton.org/*"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_title": "Importer dans Thamous",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "thamous-add-active-page@ouvaton.org",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}
