@@ -1,99 +1,57 @@
 # Extension Firefox Thamous
 
-Cette extension permet d'importer depuis Firefox :
+Cette extension permet d’ajouter plus facilement des références dans **Thamous** depuis Firefox.
 
-1. la référence principale de la page active ;
-2. toutes les références détectées dans la page ;
-3. la page web elle-même comme référence de type `Site`.
+## À quoi sert-elle ?
 
-Pour la référence principale, l'extension extrait dans Firefox les métadonnées principales de la page active (titre, auteur, langue, etc.), puis envoie l'URL de l'onglet actif à l'API v2 (`prepare_ref`, mode `from_url`). Elle ouvre ensuite la page Thamous de validation (`nouvelle_ref.php`) dans une nouvelle fenêtre, préremplie pour que l'utilisateur confirme l'enregistrement.
+Quand vous consultez une page web, l’extension peut :
 
-## Fichiers
+- **importer la référence principale** de la page ;
+- **importer toutes les références** repérées dans la page ;
+- **importer la page elle-même** comme référence web.
 
-- `manifest.json` : manifeste WebExtension.
-- `icons/` : icônes embarquées, générées à partir de `BabouinPapyrus.png`.
-- `background.js` : authentification, stockage du token, appel API, ouverture de la page de validation.
-- `content-script.js` : extraction locale des métadonnées dans la page ouverte par Firefox.
-- `popup.html` / `popup.css` / `popup.js` : interface de connexion et d'import.
+Elle évite ainsi de recopier à la main le titre, l’auteur, l’année, la langue, etc.
 
-## Flux d'authentification
+## Installation
 
-L'extension appelle :
+### Installer l’extension signée
 
-- `POST /thamous/php/api/v2/index.php?path=login_token`
+1. téléchargez le fichier **`.xpi` signé** depuis la page GitHub du projet ;
+2. dans Firefox, ouvrez `about:addons` ;
+3. cliquez sur la roue dentée ;
+4. choisissez **Installer un module depuis un fichier…** ;
+5. sélectionnez le fichier `.xpi`.
 
-avec un login et un mot de passe, puis stocke localement le token Bearer retourné.
+Une fois installée, vous pouvez l’épingler dans la barre d’outils Firefox.
 
-## Flux d'import depuis l'onglet actif
+## Première utilisation
 
-L'extension appelle :
+1. cliquez sur l’icône de l’extension ;
+2. connectez-vous avec vos identifiants **Thamous** ;
+3. choisissez l’action souhaitée :
+   - **la référence principale**
+   - **toutes les références**
+   - **la page**
 
-- `POST /thamous/php/api/v2/index.php?path=prepare_ref`
+## Choix du modèle LLM
 
-avec un JSON de la forme :
+Pour l’option **toutes les références**, un modèle LLM doit être sélectionné dans Thamous.
 
-```json
-{
-  "mode": "from_url",
-  "projet": "perso",
-  "page_url": "https://...",
-  "page_title": "Titre de l'onglet",
-  "fields": {
-    "nom": "Nom, Prénom",
-    "titre": "Titre détecté",
-    "langue": "français",
-    "editeur": "Éditeur détecté",
-    "annee": "2026",
-    "doi": "10....",
-    "url": "https://..."
-  }
-}
-```
+Si aucun modèle n’est sélectionné :
 
-L'extension pré-extrait ces métadonnées dans Firefox, puis l'API complète si besoin et retourne `form_url`.
+- l’extension vous l’indique ;
+- vous pouvez cliquer sur le nom du modèle (ou sur le bouton proposé) pour ouvrir la fenêtre de sélection.
 
-Le projet est volontairement fixé à `perso` dans l'extension afin de garder une interface minimale pour l'import rapide.
+## Pour les utilisateurs de Thamous
 
-## Import de toutes les références
+L’extension est prévue pour un usage avec **Thamous** et ouvre ensuite la fenêtre de validation habituelle afin de vérifier ou compléter les informations avant l’enregistrement.
 
-Le bouton **Importer toutes les références** ouvre la page Thamous existante `llm/import_biblio_llm.php` dans une nouvelle fenêtre, en lui transmettant l'URL de la page active.
+## Remarques
 
-Cette fenêtre :
+- selon les sites, les métadonnées récupérées peuvent être plus ou moins complètes ;
+- certaines pages donnent d’excellents résultats, d’autres demandent encore une petite correction manuelle ;
+- l’extension est surtout faite pour **gagner du temps**, pas pour remplacer toute vérification.
 
-- réutilise le workflow d'import bibliographique déjà présent dans Thamous ;
-- lance automatiquement l'extraction ;
-- distingue les références déjà présentes dans Thamous ;
-- laisse l'utilisateur sélectionner celles qu'il souhaite importer.
+## Distribution
 
-## Import de la page
-
-Le bouton **Importer la page** prépare une référence `Site` à partir de l'URL active, de son titre, de la langue détectée, de l'éditeur/site, et de l'année éventuelle.
-
-## Chargement dans Firefox
-
-1. ouvrir `about:debugging#/runtime/this-firefox`
-2. cliquer sur **Charger un module complémentaire temporaire**
-3. sélectionner `manifest.json` dans ce dossier
-
-## Archive ZIP
-
-Une archive ZIP de l'extension peut être générée pour faciliter le chargement ou l'archivage.
-
-## Signature privée et distribution GitHub
-
-L’extension est conçue pour pouvoir être :
-
-- signée par Mozilla en mode **unlisted** ;
-- distribuée ensuite hors AMO public, par exemple via **GitHub Releases** ;
-- mise à jour via un `updates.json` auto-hébergé.
-
-Voir :
-
-- `DISTRIBUTION.md`
-- `build_release.py`
-
-## Limites actuelles
-
-- l'extraction dépend des métadonnées présentes dans la page distante ;
-- les `host_permissions` sont limitées à `https://thamous.ouvaton.org/*` ;
-- les tailles d'icône sont générées localement à partir de `BabouinPapyrus.png`, avec centrage sur fond transparent.
+Cette extension est distribuée de manière privée sous forme d’extension Firefox signée, en dehors du catalogue public AMO.
