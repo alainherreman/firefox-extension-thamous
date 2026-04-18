@@ -4,7 +4,7 @@
 
 Télécharger ce fichier :
 
-- `signed/thamous-firefox-extension-0.2.0-signed.xpi`
+- `thamous-firefox-extension-0.2.0-signed.xpi`
 
 ## Installation dans Firefox
 
@@ -20,3 +20,9 @@ Elle permet, depuis Firefox, d’importer plus facilement dans Thamous :
 - la référence principale d’une page ;
 - toutes les références trouvées dans une page ;
 - ou la page elle-même.
+
+## Important
+
+Pour **importer toutes les références**, il faut d’abord avoir **sélectionné un modèle LLM** dans Thamous.
+
+Si aucun modèle n’est sélectionné, l’extension l’indique et permet d’ouvrir directement la fenêtre où choisir ce modèle.
