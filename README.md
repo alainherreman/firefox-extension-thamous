@@ -16,13 +16,17 @@ Elle évite ainsi de recopier à la main le titre, l’auteur, l’année, la la
 
 ### Installer l’extension signée
 
-1. téléchargez le fichier **`.xpi` signé** depuis la page GitHub du projet ;
+1. téléchargez le fichier **`.xpi` signé** depuis la page GitHub du projet, dans le dossier `signed/` ;
 2. dans Firefox, ouvrez `about:addons` ;
 3. cliquez sur la roue dentée ;
 4. choisissez **Installer un module depuis un fichier…** ;
 5. sélectionnez le fichier `.xpi`.
 
 Une fois installée, vous pouvez l’épingler dans la barre d’outils Firefox.
+
+Téléchargement direct du fichier signé :
+
+- `signed/thamous-firefox-extension-0.2.0-signed.xpi`
 
 ## Première utilisation
 
