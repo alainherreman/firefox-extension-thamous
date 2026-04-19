@@ -399,6 +399,21 @@ function populateLlmImportPage(payload) {
   return { ok: true };
 }
 
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window || !event.data || event.data.type !== "llm_model_changed") {
+    return;
+  }
+  browser.runtime.sendMessage({
+    type: "saveExtensionLlmSelection",
+    payload: {
+      provider: event.data.provider || "",
+      model: event.data.model_key || "",
+      label: event.data.model_label || ""
+    }
+  }).catch(() => {});
+});
+
 browser.runtime.onMessage.addListener((message) => {
   if (!message || !message.type) return undefined;
   if (message.type === "extractPageMetadata") {

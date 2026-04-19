@@ -43,21 +43,25 @@ async function refreshState() {
       const llmState = await sendMessage("getLlmState");
       if (llmState?.has_model) {
         llmStatusEl.textContent = `LLM : ${llmState.provider || ""}${llmState.provider ? " - " : ""}${llmState.label || llmState.model}`;
+        llmStatusButton.classList.remove("hidden");
         chooseLlmButton.classList.add("hidden");
         importAllButton.disabled = false;
       } else {
-        llmStatusEl.textContent = "LLM : aucun modèle sélectionné. Il faut en choisir un pour importer toutes les références.";
+        llmStatusEl.textContent = "";
+        llmStatusButton.classList.add("hidden");
         chooseLlmButton.classList.remove("hidden");
         importAllButton.disabled = true;
       }
     } catch (error) {
-      llmStatusEl.textContent = "LLM : impossible de vérifier le modèle sélectionné.";
+      llmStatusEl.textContent = "";
+      llmStatusButton.classList.add("hidden");
       chooseLlmButton.classList.remove("hidden");
-      importAllButton.disabled = false;
+      importAllButton.disabled = true;
     }
   } else {
     headerUserName.textContent = "Thamous";
     llmStatusEl.textContent = "";
+    llmStatusButton.classList.add("hidden");
     chooseLlmButton.classList.add("hidden");
     importAllButton.disabled = false;
   }

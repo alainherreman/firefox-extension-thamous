@@ -13,7 +13,10 @@ async function getSettings() {
     tokenExpiresAt: "",
     login: "",
     displayName: "",
-    signature: ""
+    signature: "",
+    extensionLlmProvider: "",
+    extensionLlmModel: "",
+    extensionLlmLabel: ""
   });
 
   return {
@@ -160,32 +163,50 @@ async function resolvePreferredThamousAppBase(apiBaseUrl) {
   return fallback;
 }
 
+function getCanonicalThamousBase(apiBaseUrl) {
+  try {
+    const url = new URL(apiBaseUrl || DEFAULT_API_BASE_URL);
+    return `${url.origin}/thamous/`;
+  } catch (_) {
+    return "https://thamous.ouvaton.org/thamous/";
+  }
+}
+
 async function getLlmState() {
   const settings = await getSettings();
-  if (!settings.token) {
-    return { has_model: false, provider: "", model: "", label: "" };
-  }
-  const appBase = await resolvePreferredThamousAppBase(settings.apiBaseUrl);
-  const response = await fetch(`${appBase}llm/llm_current.php`, {
-    method: "GET",
-    credentials: "include",
-    headers: {
-      "Accept": "application/json"
-    }
-  });
-  const payload = await response.json();
   return {
-    has_model: Boolean(payload?.has_model),
-    provider: payload?.provider || "",
-    model: payload?.model || "",
-    label: payload?.label || ""
+    has_model: Boolean(settings.extensionLlmProvider && settings.extensionLlmModel),
+    provider: settings.extensionLlmProvider || "",
+    model: settings.extensionLlmModel || "",
+    label: settings.extensionLlmLabel || settings.extensionLlmModel || "",
+    appBase: getCanonicalThamousBase(settings.apiBaseUrl)
   };
+}
+
+async function saveExtensionLlmSelection(payload = {}) {
+  const provider = String(payload.provider || "").trim();
+  const model = String(payload.model || payload.model_key || "").trim();
+  const label = String(payload.label || payload.model_label || model).trim();
+  await storage.set({
+    extensionLlmProvider: provider,
+    extensionLlmModel: model,
+    extensionLlmLabel: provider && model ? label : ""
+  });
+  return getLlmState();
 }
 
 async function openLlmManage() {
   const settings = await getSettings();
-  const appBase = await resolvePreferredThamousAppBase(settings.apiBaseUrl);
-  const url = `${appBase}llm/llm_manage.php`;
+  const appBase = getCanonicalThamousBase(settings.apiBaseUrl);
+  const params = new URLSearchParams();
+  if (settings.extensionLlmProvider) {
+    params.set("provider", settings.extensionLlmProvider);
+  }
+  if (settings.extensionLlmModel) {
+    params.set("model", settings.extensionLlmModel);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const url = `${appBase}llm/llm_manage_extension.php${suffix}`;
   await openWindow(url, 1100, 820);
   return { ok: true, url };
 }
@@ -316,12 +337,17 @@ async function importCurrentPage() {
 async function importAllReferences() {
   try {
     const { settings, tab } = await extractActiveTabAndMeta();
+    if (!settings.extensionLlmProvider || !settings.extensionLlmModel) {
+      throw new Error("BAD_LLM: Choisissez d’abord un modèle LLM pour l’extension.");
+    }
     const importTextPayload = await extractActiveTabImportText(tab.id);
     const sourceText = (importTextPayload?.text || "").trim();
-    const appBase = await resolvePreferredThamousAppBase(settings.apiBaseUrl);
+    const appBase = getCanonicalThamousBase(settings.apiBaseUrl);
     const importUrl =
       `${appBase}llm/import_biblio_llm.php?source_url=` +
       encodeURIComponent(tab.url) +
+      `&provider=${encodeURIComponent(settings.extensionLlmProvider)}` +
+      `&model=${encodeURIComponent(settings.extensionLlmModel)}` +
       (sourceText ? "" : "&auto_extract=1");
     const createdWindow = await openWindow(importUrl, 1100, 820);
     const createdTabs = createdWindow?.tabs || await tabsApi.query({ windowId: createdWindow.id });
@@ -371,6 +397,9 @@ runtimeApi.onMessage.addListener((message) => {
   }
   if (message.type === "openLlmManage") {
     return openLlmManage();
+  }
+  if (message.type === "saveExtensionLlmSelection") {
+    return saveExtensionLlmSelection(message.payload || {});
   }
   if (message.type === "saveSettings") {
     return setSettings(message.payload || {});
