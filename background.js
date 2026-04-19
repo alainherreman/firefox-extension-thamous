@@ -1,4 +1,5 @@
 const DEFAULT_API_BASE_URL = "https://thamous.ouvaton.org/thamous/php/api/v2/index.php";
+const LOGIN_APP_NAME = "firefox-extension";
 const storage = (typeof browser !== "undefined" ? browser : chrome).storage.local;
 const tabsApi = (typeof browser !== "undefined" ? browser : chrome).tabs;
 const windowsApi = (typeof browser !== "undefined" ? browser : chrome).windows;
@@ -8,6 +9,8 @@ async function getSettings() {
   const data = await storage.get({
     apiBaseUrl: DEFAULT_API_BASE_URL,
     token: "",
+    tokenType: "",
+    tokenExpiresAt: "",
     login: "",
     displayName: "",
     signature: ""
@@ -25,7 +28,7 @@ async function setSettings(patch) {
 }
 
 async function clearSession() {
-  await storage.remove(["token", "login", "displayName", "signature"]);
+  await storage.remove(["token", "tokenType", "tokenExpiresAt", "login", "displayName", "signature"]);
   return getSettings();
 }
 
@@ -60,16 +63,31 @@ async function login({ apiBaseUrl, login, password }) {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ login, password })
+    body: JSON.stringify({
+      login,
+      password,
+      app: LOGIN_APP_NAME,
+      ttl: 86400
+    })
   });
 
   return setSettings({
     apiBaseUrl: normalizedApiBaseUrl,
     token: payload.token || "",
+    tokenType: payload.token_type || "",
+    tokenExpiresAt: payload.expires_at || "",
     login: payload.login || login,
     displayName: payload.nom || login,
     signature: payload.signature || ""
   });
+}
+
+function normalizeApiError(error) {
+  const message = String(error?.message || error || "");
+  if (message.startsWith("UNAUTHORIZED: Invalid token") || message.startsWith("UNAUTHORIZED: Missing token")) {
+    return new Error("UNAUTHORIZED: Votre session API a expiré. Reconnectez-vous.");
+  }
+  return error instanceof Error ? error : new Error(message || "Erreur inconnue");
 }
 
 async function extractActiveTabAndMeta() {
@@ -196,130 +214,142 @@ async function waitForTabComplete(tabId, timeoutMs = 15000) {
 }
 
 async function importMainReference() {
-  const { settings, tab, pageMeta } = await extractActiveTabAndMeta();
-  const fields = Object.fromEntries(
-    Object.entries({
-      nom: pageMeta?.author || "",
-      titre: pageMeta?.title || "",
-      langue: pageMeta?.language || pageMeta?.htmlLang || "",
-      editeur: pageMeta?.publisher || "",
-      annee: pageMeta?.year || "",
-      doi: pageMeta?.doi || "",
-      url: pageMeta?.urlField || ""
-    }).filter(([, value]) => String(value || "").trim() !== "")
-  );
+  try {
+    const { settings, tab, pageMeta } = await extractActiveTabAndMeta();
+    const fields = Object.fromEntries(
+      Object.entries({
+        nom: pageMeta?.author || "",
+        titre: pageMeta?.title || "",
+        langue: pageMeta?.language || pageMeta?.htmlLang || "",
+        editeur: pageMeta?.publisher || "",
+        annee: pageMeta?.year || "",
+        doi: pageMeta?.doi || "",
+        url: pageMeta?.urlField || ""
+      }).filter(([, value]) => String(value || "").trim() !== "")
+    );
 
-  const payload = await apiFetch(`${settings.apiBaseUrl}?path=prepare_ref`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${settings.token}`
-    },
-    body: JSON.stringify({
-      mode: "from_url",
-      projet: "perso",
-      page_url: tab.url,
-      page_title: pageMeta?.title || "",
-      fields
-    })
-  });
+    const payload = await apiFetch(`${settings.apiBaseUrl}?path=prepare_ref`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${settings.token}`
+      },
+      body: JSON.stringify({
+        mode: "from_url",
+        projet: "perso",
+        page_url: tab.url,
+        page_title: pageMeta?.title || "",
+        fields
+      })
+    });
 
-  if (!payload.form_url) {
-    throw new Error("BAD_RESPONSE: form_url manquant dans la réponse API");
-  }
-
-  await openWindow(payload.form_url, 980, 760);
-  return {
-    ...payload,
-    activeTab: {
-      id: tab.id,
-      title: tab.title || "",
-      url: tab.url
+    if (!payload.form_url) {
+      throw new Error("BAD_RESPONSE: form_url manquant dans la réponse API");
     }
-  };
+
+    await openWindow(payload.form_url, 980, 760);
+    return {
+      ...payload,
+      activeTab: {
+        id: tab.id,
+        title: tab.title || "",
+        url: tab.url
+      }
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
 }
 
 async function importCurrentPage() {
-  const { settings, tab, pageMeta } = await extractActiveTabAndMeta();
-  const host = (() => {
-    try {
-      return new URL(tab.url).hostname.replace(/^www\./i, "");
-    } catch (_) {
-      return "";
-    }
-  })();
-
-  const payload = await apiFetch(`${settings.apiBaseUrl}?path=prepare_ref`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${settings.token}`
-    },
-    body: JSON.stringify({
-      mode: "direct",
-      projet: "perso",
-      table: "tbiblio",
-      type: "Site",
-      fields: {
-        nom: pageMeta?.publisher || host,
-        titre: pageMeta?.title || tab.title || host,
-        langue: pageMeta?.language || pageMeta?.htmlLang || "",
-        editeur: pageMeta?.publisher || host,
-        annee: pageMeta?.year || "",
-        url: tab.url,
-        doi: ""
+  try {
+    const { settings, tab, pageMeta } = await extractActiveTabAndMeta();
+    const host = (() => {
+      try {
+        return new URL(tab.url).hostname.replace(/^www\./i, "");
+      } catch (_) {
+        return "";
       }
-    })
-  });
+    })();
 
-  if (!payload.form_url) {
-    throw new Error("BAD_RESPONSE: form_url manquant dans la réponse API");
-  }
+    const payload = await apiFetch(`${settings.apiBaseUrl}?path=prepare_ref`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${settings.token}`
+      },
+      body: JSON.stringify({
+        mode: "direct",
+        projet: "perso",
+        table: "tbiblio",
+        type: "Site",
+        fields: {
+          nom: pageMeta?.publisher || host,
+          titre: pageMeta?.title || tab.title || host,
+          langue: pageMeta?.language || pageMeta?.htmlLang || "",
+          editeur: pageMeta?.publisher || host,
+          annee: pageMeta?.year || "",
+          url: tab.url,
+          doi: ""
+        }
+      })
+    });
 
-  await openWindow(payload.form_url, 980, 760);
-  return {
-    ...payload,
-    activeTab: {
-      id: tab.id,
-      title: tab.title || "",
-      url: tab.url
+    if (!payload.form_url) {
+      throw new Error("BAD_RESPONSE: form_url manquant dans la réponse API");
     }
-  };
+
+    await openWindow(payload.form_url, 980, 760);
+    return {
+      ...payload,
+      activeTab: {
+        id: tab.id,
+        title: tab.title || "",
+        url: tab.url
+      }
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
 }
 
 async function importAllReferences() {
-  const { settings, tab } = await extractActiveTabAndMeta();
-  const importTextPayload = await extractActiveTabImportText(tab.id);
-  const sourceText = (importTextPayload?.text || "").trim();
-  const appBase = await resolvePreferredThamousAppBase(settings.apiBaseUrl);
-  const importUrl =
-    `${appBase}llm/import_biblio_llm.php?source_url=` +
-    encodeURIComponent(tab.url) +
-    (sourceText ? "" : "&auto_extract=1");
-  const createdWindow = await openWindow(importUrl, 1100, 820);
-  const createdTabs = createdWindow?.tabs || await tabsApi.query({ windowId: createdWindow.id });
-  const targetTab = createdTabs && createdTabs[0];
-  if (sourceText && targetTab?.id) {
-    await waitForTabComplete(targetTab.id);
-    await (typeof browser !== "undefined"
-      ? browser.tabs.sendMessage(targetTab.id, {
-          type: "populateLlmImportPage",
-          payload: {
-            sourceUrl: tab.url,
-            sourceText,
-            autoSubmit: true
-          }
-        })
-      : chrome.tabs.sendMessage(targetTab.id, {
-          type: "populateLlmImportPage",
-          payload: {
-            sourceUrl: tab.url,
-            sourceText,
-            autoSubmit: true
-          }
-        }));
+  try {
+    const { settings, tab } = await extractActiveTabAndMeta();
+    const importTextPayload = await extractActiveTabImportText(tab.id);
+    const sourceText = (importTextPayload?.text || "").trim();
+    const appBase = await resolvePreferredThamousAppBase(settings.apiBaseUrl);
+    const importUrl =
+      `${appBase}llm/import_biblio_llm.php?source_url=` +
+      encodeURIComponent(tab.url) +
+      (sourceText ? "" : "&auto_extract=1");
+    const createdWindow = await openWindow(importUrl, 1100, 820);
+    const createdTabs = createdWindow?.tabs || await tabsApi.query({ windowId: createdWindow.id });
+    const targetTab = createdTabs && createdTabs[0];
+    if (sourceText && targetTab?.id) {
+      await waitForTabComplete(targetTab.id);
+      await (typeof browser !== "undefined"
+        ? browser.tabs.sendMessage(targetTab.id, {
+            type: "populateLlmImportPage",
+            payload: {
+              sourceUrl: tab.url,
+              sourceText,
+              autoSubmit: true
+            }
+          })
+        : chrome.tabs.sendMessage(targetTab.id, {
+            type: "populateLlmImportPage",
+            payload: {
+              sourceUrl: tab.url,
+              sourceText,
+              autoSubmit: true
+            }
+          }));
+    }
+    return { ok: true, url: importUrl };
+  } catch (error) {
+    throw normalizeApiError(error);
   }
-  return { ok: true, url: importUrl };
 }
 
 runtimeApi.onMessage.addListener((message) => {

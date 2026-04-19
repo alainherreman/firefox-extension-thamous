@@ -18,7 +18,7 @@ const statusEl = document.getElementById("status");
 function setStatus(message, isError = false) {
   statusEl.textContent = message || "";
   statusEl.classList.toggle("hidden", !message);
-  statusEl.style.color = isError ? "#b00020" : "";
+  statusEl.style.color = isError ? "#b00020" : "#6d4c1b";
 }
 
 function toggleView(isLoggedIn) {
@@ -100,6 +100,10 @@ importAllButton.addEventListener("click", async () => {
     await sendMessage("importAllReferences", {});
     window.close();
   } catch (error) {
+    if ((error.message || "").startsWith("UNAUTHORIZED:")) {
+      await sendMessage("logout");
+      await refreshState();
+    }
     setStatus(error.message || String(error), true);
   }
 });
@@ -131,6 +135,10 @@ importPageButton.addEventListener("click", async () => {
     setStatus(`Page de validation ouverte pour : ${result.activeTab?.title || result.page_url || "page active"}`);
     window.close();
   } catch (error) {
+    if ((error.message || "").startsWith("UNAUTHORIZED:")) {
+      await sendMessage("logout");
+      await refreshState();
+    }
     setStatus(error.message || String(error), true);
   }
 });

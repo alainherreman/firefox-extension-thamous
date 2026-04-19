@@ -26,3 +26,5 @@ Elle permet, depuis Firefox, d’importer plus facilement dans Thamous :
 Pour **importer toutes les références**, il faut d’abord avoir **sélectionné un modèle LLM** dans Thamous.
 
 Si aucun modèle n’est sélectionné, l’extension l’indique et permet d’ouvrir directement la fenêtre où choisir ce modèle.
+
+L’extension utilise désormais un **token API temporaire** obtenu automatiquement à partir du **login** et du **mot de passe**. Si la session API expire, il suffit de se reconnecter dans le popup de l’extension.
