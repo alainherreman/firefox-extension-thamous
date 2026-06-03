@@ -5,6 +5,18 @@ const tabsApi = (typeof browser !== "undefined" ? browser : chrome).tabs;
 const windowsApi = (typeof browser !== "undefined" ? browser : chrome).windows;
 const runtimeApi = (typeof browser !== "undefined" ? browser : chrome).runtime;
 
+const permissionsApi = (typeof browser !== "undefined" ? browser : chrome).permissions;
+
+async function hasApiHostPermission(apiBaseUrl) {
+  try {
+    if (!permissionsApi?.contains) return null;
+    const url = new URL(apiBaseUrl || DEFAULT_API_BASE_URL);
+    return await permissionsApi.contains({ origins: [`${url.protocol}//${url.host}/*`] });
+  } catch (_) {
+    return null;
+  }
+}
+
 async function getSettings() {
   const data = await storage.get({
     apiBaseUrl: DEFAULT_API_BASE_URL,
@@ -36,7 +48,14 @@ async function clearSession() {
 }
 
 async function apiFetch(url, options = {}) {
-  const response = await fetch(url, options);
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    const hostPermission = await hasApiHostPermission(url);
+    const hint = hostPermission === false ? " Accès hôte Firefox manquant pour thamous.ouvaton.org." : "";
+    throw new Error(`Impossible de joindre Thamous depuis l’extension.${hint} Détail technique: ${error?.name || 'Error'}${error?.message ? `: ${error.message}` : ''}`);
+  }
   const contentType = response.headers.get("content-type") || "";
   const payload = contentType.includes("application/json")
     ? await response.json()
@@ -88,15 +107,30 @@ async function login({ apiBaseUrl, login, password }) {
 function normalizeApiError(error) {
   const message = String(error?.message || error || "");
   if (message.startsWith("UNAUTHORIZED: Invalid token") || message.startsWith("UNAUTHORIZED: Missing token")) {
-    return new Error("UNAUTHORIZED: Votre session API a expiré. Reconnectez-vous.");
+    return new Error("Votre session API a expiré. Reconnectez-vous.");
   }
   return error instanceof Error ? error : new Error(message || "Erreur inconnue");
+}
+
+function getBrowserLanguageFallback() {
+  return String(
+    (typeof navigator !== "undefined" && (navigator.language || (navigator.languages || [])[0])) ||
+    ""
+  ).trim();
+}
+
+function getEffectivePageLanguage(pageMeta = {}) {
+  return String(pageMeta?.language || pageMeta?.htmlLang || getBrowserLanguageFallback() || "").trim();
+}
+
+function getEffectivePageUrl(tab, pageMeta = {}) {
+  return String(pageMeta?.urlField || tab?.url || "").trim();
 }
 
 async function extractActiveTabAndMeta() {
   const settings = await getSettings();
   if (!settings.token) {
-    throw new Error("UNAUTHORIZED: Aucun token enregistré");
+    throw new Error("Aucune session API enregistrée. Reconnectez-vous.");
   }
 
   const [tab] = await tabsApi.query({ active: true, currentWindow: true });
@@ -127,6 +161,15 @@ async function openWindow(url, width = 900, height = 700) {
     width,
     height
   });
+}
+
+function isYouTubeUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "youtu.be" || host === "youtube.com" || host === "www.youtube.com" || host === "m.youtube.com" || host.endsWith(".youtube.com") || host === "youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com");
+  } catch (_) {
+    return false;
+  }
 }
 
 function getThamousAppBaseFromApi(apiBaseUrl) {
@@ -241,11 +284,12 @@ async function importMainReference() {
       Object.entries({
         nom: pageMeta?.author || "",
         titre: pageMeta?.title || "",
-        langue: pageMeta?.language || pageMeta?.htmlLang || "",
+        langue: getEffectivePageLanguage(pageMeta),
         editeur: pageMeta?.publisher || "",
         annee: pageMeta?.year || "",
         doi: pageMeta?.doi || "",
-        url: pageMeta?.urlField || ""
+        url: getEffectivePageUrl(tab, pageMeta),
+        duree: pageMeta?.duree || ""
       }).filter(([, value]) => String(value || "").trim() !== "")
     );
 
@@ -292,6 +336,10 @@ async function importCurrentPage() {
         return "";
       }
     })();
+    const isYoutube = isYouTubeUrl(tab.url);
+    const effectiveType = pageMeta?.refType || (isYoutube ? "Vidéo" : "Site");
+    const effectivePublisher = pageMeta?.publisher || (isYoutube ? "YouTube" : host);
+    const effectiveAuthor = pageMeta?.author || "";
 
     const payload = await apiFetch(`${settings.apiBaseUrl}?path=prepare_ref`, {
       method: "POST",
@@ -303,14 +351,15 @@ async function importCurrentPage() {
         mode: "direct",
         projet: "perso",
         table: "tbiblio",
-        type: "Site",
+        type: effectiveType,
         fields: {
-          nom: pageMeta?.publisher || host,
+          nom: effectiveType === "Vidéo" ? effectiveAuthor : effectivePublisher,
           titre: pageMeta?.title || tab.title || host,
-          langue: pageMeta?.language || pageMeta?.htmlLang || "",
-          editeur: pageMeta?.publisher || host,
+          langue: getEffectivePageLanguage(pageMeta),
+          editeur: effectivePublisher,
           annee: pageMeta?.year || "",
-          url: tab.url,
+          duree: pageMeta?.duree || "",
+          url: getEffectivePageUrl(tab, pageMeta),
           doi: ""
         }
       })

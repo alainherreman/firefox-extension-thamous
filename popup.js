@@ -4,6 +4,7 @@ const loginView = document.getElementById("login-view");
 const appView = document.getElementById("app-view");
 const loginInput = document.getElementById("login");
 const passwordInput = document.getElementById("password");
+const loginForm = document.getElementById("login-form");
 const loginButton = document.getElementById("login-button");
 const importMainButton = document.getElementById("import-main-button");
 const importAllButton = document.getElementById("import-all-button");
@@ -14,6 +15,15 @@ const chooseLlmButton = document.getElementById("choose-llm-button");
 const logoutButton = document.getElementById("logout-button");
 const headerUserName = document.getElementById("header-user-name");
 const statusEl = document.getElementById("status");
+
+const permissionsApi = extApi.permissions;
+
+async function requestThamousHostPermissionDirectly() {
+  if (!permissionsApi?.request) {
+    return true;
+  }
+  return permissionsApi.request({ origins: ["https://thamous.ouvaton.org/*"] });
+}
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message || "";
@@ -68,16 +78,21 @@ async function refreshState() {
   return state;
 }
 
-loginButton.addEventListener("click", async () => {
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
   setStatus("Connexion…");
   try {
-    const state = await sendMessage("login", {
+    const granted = await requestThamousHostPermissionDirectly();
+    if (!granted) {
+      throw new Error("Accès à thamous.ouvaton.org refusé par Firefox.");
+    }
+    await sendMessage("login", {
       login: loginInput.value.trim(),
       password: passwordInput.value
     });
     passwordInput.value = "";
     await refreshState();
-    setStatus(`Connecté : ${state.displayName || state.login || "utilisateur"}`);
+    setStatus("");
   } catch (error) {
     setStatus(error.message || String(error), true);
   }
@@ -90,7 +105,7 @@ importMainButton.addEventListener("click", async () => {
     setStatus(`Page de validation ouverte pour : ${result.activeTab?.title || result.page_url || "page active"}`);
     window.close();
   } catch (error) {
-    if ((error.message || "").startsWith("UNAUTHORIZED:")) {
+    if ((error.message || "").includes("session API") || (error.message || "").startsWith("UNAUTHORIZED:")) {
       await sendMessage("logout");
       await refreshState();
     }
@@ -104,7 +119,7 @@ importAllButton.addEventListener("click", async () => {
     await sendMessage("importAllReferences", {});
     window.close();
   } catch (error) {
-    if ((error.message || "").startsWith("UNAUTHORIZED:")) {
+    if ((error.message || "").includes("session API") || (error.message || "").startsWith("UNAUTHORIZED:")) {
       await sendMessage("logout");
       await refreshState();
     }
@@ -139,7 +154,7 @@ importPageButton.addEventListener("click", async () => {
     setStatus(`Page de validation ouverte pour : ${result.activeTab?.title || result.page_url || "page active"}`);
     window.close();
   } catch (error) {
-    if ((error.message || "").startsWith("UNAUTHORIZED:")) {
+    if ((error.message || "").includes("session API") || (error.message || "").startsWith("UNAUTHORIZED:")) {
       await sendMessage("logout");
       await refreshState();
     }

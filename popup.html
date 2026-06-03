@@ -21,16 +21,18 @@
       </header>
 
       <section id="login-view" class="view hidden">
-        <p class="intro">Connectez-vous pour importer des références dans Thamous.</p>
-        <label>
-          <span>Login</span>
-          <input id="login" type="text" autocomplete="username">
-        </label>
-        <label>
-          <span>Mot de passe</span>
-          <input id="password" type="password" autocomplete="current-password">
-        </label>
-        <button id="login-button" type="button" class="primary-button">Se connecter</button>
+        <form id="login-form">
+          <p class="intro">Connectez-vous pour importer des références dans Thamous.</p>
+          <label>
+            <span>Login</span>
+            <input id="login" type="text" autocomplete="username">
+          </label>
+          <label>
+            <span>Mot de passe</span>
+            <input id="password" type="password" autocomplete="current-password">
+          </label>
+          <button id="login-button" type="submit" class="primary-button">Se connecter</button>
+        </form>
       </section>
 
       <section id="app-view" class="view hidden">

@@ -110,6 +110,193 @@ function normalizeWhitespace(value) {
   return (value || "").replace(/\s+/g, " ").trim();
 }
 
+function isYouTubeUrl(url = location.href) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "youtu.be" || host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com");
+  } catch (_) {
+    return false;
+  }
+}
+
+function normalizeTitleCaps(title) {
+  let value = normalizeWhitespace(title);
+  if (!value) return "";
+  const preserve = new Set(["AI", "API", "LLM", "PDF", "DOI", "ISBN", "URL", "HTTP", "HTTPS", "SQL", "JSON", "YouTube"]);
+  const sentenceCaseGroup = (segment) => {
+    const tokens = segment.split(/(\s+|[:;,.!?()\[\]{}«»"“”‘’\-–—]+)/u);
+    let firstWordDone = false;
+    return tokens.map((token) => {
+      if (!token || /^\s+$/u.test(token) || /^[:;,.!?()\[\]{}«»"“”‘’\-–—]+$/u.test(token)) {
+        return token;
+      }
+      if (!/\p{L}/u.test(token)) {
+        return token;
+      }
+      const plain = token.replace(/^[^\p{L}]*/u, '').replace(/[^\p{L}]+$/u, '');
+      if (!plain) return token;
+      if (preserve.has(plain) || /^[A-Z0-9]{1,4}$/u.test(plain)) {
+        return token;
+      }
+      const lower = plain.toLowerCase();
+      const repl = !firstWordDone ? (lower.charAt(0).toUpperCase() + lower.slice(1)) : lower;
+      firstWordDone = true;
+      return token.replace(plain, repl);
+    }).join('');
+  };
+  const convert = (segment) => {
+    const letters = (segment.match(/\p{L}/gu) || []).length;
+    const uppers = (segment.match(/[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ]/gu) || []).length;
+    const words = (segment.match(/\p{L}+/gu) || []).length;
+    if (letters < 8 || words < 2) return segment;
+    if (uppers / letters < 0.45) return segment;
+    return sentenceCaseGroup(segment);
+  };
+  value = value.replace(/[«"]([^»"]+)[»"]/gu, (full, inner) => full.replace(inner, convert(inner)));
+  value = convert(value);
+  return normalizeWhitespace(value);
+}
+
+function parseIso8601DurationToThamous(value) {
+  const raw = String(value || "").trim();
+  const m = raw.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i);
+  if (!m) return "";
+  const h = Number(m[1] || 0);
+  const min = Number(m[2] || 0);
+  const s = Number(m[3] || 0);
+  let out = "";
+  if (h > 0) out += `${h}h`;
+  if (min > 0) out += `${min}m`;
+  if (s > 0 || out === "") out += `${s}s`;
+  return out;
+}
+
+function protectKnownAcronyms(text) {
+  const preserve = [
+    "AI", "API", "LLM", "PDF", "DOI", "ISBN", "URL", "HTTP", "HTTPS", "SQL", "JSON", "YouTube",
+    "ChatGPT", "OpenAI", "GitHub", "Node.js", "NodeJS", "JavaScript", "TypeScript", "Next.js",
+    "Vue.js", "React", "iPhone", "iPad", "iOS", "macOS", "Windows", "Linux"
+  ];
+  let out = text;
+  const placeholders = [];
+  let seq = 0;
+  const protect = (token) => {
+    const placeholder = `§§${seq}§§`;
+    seq += 1;
+    placeholders.push([placeholder, token]);
+    return placeholder;
+  };
+  preserve.forEach((token) => {
+    const re = new RegExp("\\b" + escapeRegExp(token) + "\\b", "g");
+    out = out.replace(re, () => protect(token));
+  });
+  out = out.replace(/\b(?:[A-Z]+[a-z]+[A-Z][\p{L}\d]*|[a-z]+[A-Z][\p{L}\d]*|[\p{L}\d]+[.-][\p{L}\d.]+)\b/gu, (token) => protect(token));
+  return { text: out, placeholders };
+}
+
+function restoreKnownAcronyms(text, placeholders) {
+  let out = text;
+  (placeholders || []).forEach(([placeholder, token]) => {
+    out = out.replaceAll(placeholder, token);
+  });
+  return out;
+}
+
+function uppercaseFirstAlphabetic(text) {
+  const chars = Array.from(text);
+  for (let i = 0; i < chars.length; i += 1) {
+    if (/\p{L}/u.test(chars[i])) {
+      chars[i] = chars[i].toLocaleUpperCase();
+      break;
+    }
+  }
+  return chars.join("");
+}
+
+function shouldSentenceCaseYouTubeTitle(title) {
+  const normalized = normalizeWhitespace(title);
+  const letters = (normalized.match(/\p{L}/gu) || []).length;
+  const uppers = (normalized.match(/[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ]/gu) || []).length;
+  const lower = (normalized.match(/[a-zàâäçéèêëîïôöùûüÿæœ]/gu) || []).length;
+  const words = normalized.match(/\p{L}+/gu) || [];
+  const upperWords = (normalized.match(/\b[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ][A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ'’-]{1,}\b/gu) || []).length;
+  const titleCaseWords = words.filter((word) => /^[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ][a-zàâäçéèêëîïôöùûüÿæœ]+$/u.test(word)).length;
+  const leadingUpperWords = words.slice(0, 4).filter((word) => /^[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ][A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ'’-]+$/u.test(word)).length;
+  if (letters < 8) return false;
+  if (uppers / Math.max(1, letters) >= 0.55) return true;
+  if (upperWords >= 3 && lower <= uppers / 3) return true;
+  if (leadingUpperWords >= 2) return true;
+  if (titleCaseWords >= 3 && titleCaseWords / Math.max(1, words.length) >= 0.5) return true;
+  return false;
+}
+
+function sentenceCaseYouTubeTitle(title) {
+  const normalized = normalizeWhitespace(title);
+  const protectedText = protectKnownAcronyms(normalized);
+  const suffixMatch = normalized.match(/(\s[-–—]\s[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ][\p{L}'’.\-]+(?:\s+[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸÆŒ][\p{L}'’.\-]+){1,3})$/u);
+  let protectedValue = protectedText.text;
+  const placeholders = [...protectedText.placeholders];
+  if (suffixMatch) {
+    const suffixPlaceholder = `§§name§§`;
+    protectedValue = protectedValue.replace(suffixMatch[1], suffixPlaceholder);
+    placeholders.push([suffixPlaceholder, suffixMatch[1]]);
+  }
+  let out = protectedValue.toLocaleLowerCase();
+  if (!/^\s*§§\d+§§/u.test(out)) {
+    out = uppercaseFirstAlphabetic(out);
+  }
+  out = restoreKnownAcronyms(out, placeholders);
+  return normalizeWhitespace(out);
+}
+
+function normalizeYouTubeTitle(rawTitle, channelName) {
+  let title = cleanTitleUsingSiteContext(rawTitle, "YouTube", channelName)
+    .replace(/\s*-\s*YouTube\s*$/i, "")
+    .trim();
+  if (shouldSentenceCaseYouTubeTitle(title)) {
+    title = sentenceCaseYouTubeTitle(title);
+  }
+  return normalizeWhitespace(title);
+}
+
+function extractYouTubeMetadata(jsonLd) {
+  const channelName = cleanAuthorName(
+    firstText([
+      "ytd-watch-metadata ytd-channel-name a",
+      "ytd-channel-name#channel-name a",
+      "#owner #channel-name a",
+      "#channel-name a",
+      "#text.ytd-channel-name"
+    ]) || firstMeta(["author", "twitter:creator"]) || jsonLd.authors?.[0] || ""
+  );
+  const rawTitle =
+    firstMeta(["title", "og:title", "twitter:title", "name"]) ||
+    jsonLd.title ||
+    document.title ||
+    firstText(["h1.ytd-watch-metadata", "yt-formatted-string.style-scope.ytd-watch-metadata"]) ||
+    "";
+  const title = normalizeYouTubeTitle(rawTitle, channelName);
+  const dateRaw = jsonLd.datePublished || firstMeta(["datePublished", "og:video:release_date", "uploadDate"]);
+  const duration = parseIso8601DurationToThamous(
+    firstMeta(["duration", "video:duration"]) ||
+    String((document.querySelector('meta[itemprop="duration"]')?.getAttribute("content") || "")).trim() ||
+    ""
+  );
+  const yearMatch = String(dateRaw || "").match(/\b(1[5-9]\d{2}|20\d{2})\b/);
+  return {
+    title,
+    author: channelName,
+    language: firstMeta(["inLanguage", "og:locale"]) || document.documentElement.lang || "",
+    publisher: channelName || "YouTube",
+    year: yearMatch ? yearMatch[1] : "",
+    doi: "",
+    duree: duration,
+    htmlLang: (document.documentElement.lang || "").trim(),
+    urlField: location.href,
+    refType: "Vidéo"
+  };
+}
+
 function normalizeForCompare(value) {
   return normalizeWhitespace(value)
     .normalize("NFD")
@@ -315,7 +502,7 @@ function inferDocumentAccessUrl(pageUrl, jsonLd) {
       // ignore invalid candidate
     }
   }
-  return "";
+  return pageUrl;
 }
 
 function inferAuthorText() {
@@ -336,10 +523,13 @@ function inferAuthorText() {
 
 function extractPageMetadata() {
   const jsonLd = extractJsonLd();
+  if (isYouTubeUrl()) {
+    return extractYouTubeMetadata(jsonLd);
+  }
   const siteName = firstMeta(["og:site_name", "application-name"]);
   const rawTitle = firstMeta(["citation_title", "dc.title", "og:title", "twitter:title", "parsely-title"]) || jsonLd.title || document.title || "";
   const author = inferAuthorText() || inferAuthorTextGeneric(jsonLd);
-  const title = cleanTitleUsingSiteContext(rawTitle, siteName, author);
+  const title = normalizeTitleCaps(cleanTitleUsingSiteContext(rawTitle, siteName, author));
   const language = firstMeta(["dc.language", "citation_language", "og:locale", "article:locale"]) || jsonLd.language || document.documentElement.lang || "";
   const publisher = firstMeta(["citation_journal_title", "citation_conference_title", "citation_publisher", "dc.publisher", "og:site_name", "application-name"]) || inferPublisherGeneric(jsonLd) || "";
   const yearRaw = firstMeta(["citation_publication_date", "citation_date", "dc.date", "dc.date.issued", "article:published_time", "rft.date", "citation_online_date"]) || inferYearGeneric(jsonLd);
@@ -353,7 +543,8 @@ function extractPageMetadata() {
     year: yearMatch ? yearMatch[1] : "",
     doi: doi.trim(),
     htmlLang: (document.documentElement.lang || "").trim(),
-    urlField: inferDocumentAccessUrl(location.href, jsonLd)
+    urlField: inferDocumentAccessUrl(location.href, jsonLd),
+    refType: ""
   };
 }
 
